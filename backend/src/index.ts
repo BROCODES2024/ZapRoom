@@ -46,13 +46,11 @@ wss.on("connection", (ws: WebSocket) => {
         case "join":
           const { roomId, username } = messageData.payload;
 
-          // Store the room and username on the WebSocket object.
           customWs.roomId = roomId;
           customWs.username = username;
 
           console.log(`User ${username} joined room ${roomId}`);
 
-          // Send a welcome message to the user who just joined.
           customWs.send(
             JSON.stringify({
               type: "system",
@@ -60,15 +58,33 @@ wss.on("connection", (ws: WebSocket) => {
             })
           );
 
-          // Announce the new user to everyone else in the room.
           broadcastToRoom(
             roomId,
             {
               type: "system",
               message: `${username} has joined the room.`,
             },
-            customWs // Exclude the sender from this broadcast
+            customWs
           );
+          break;
+
+        case "chat":
+          // Ensure the user has joined a room before allowing them to chat.
+          if (customWs.roomId && customWs.username) {
+            // Create the authoritative message on the server.
+            const chatMessage = {
+              type: "chat",
+              author: customWs.username,
+              message: messageData.payload.message,
+              timestamp: new Date().toISOString(),
+            };
+            // Broadcast to everyone in the room, including the sender.
+            broadcastToRoom(customWs.roomId, chatMessage);
+          } else {
+            console.warn(
+              "Chat message received from client that has not joined a room."
+            );
+          }
           break;
 
         default:
@@ -85,7 +101,6 @@ wss.on("connection", (ws: WebSocket) => {
 
   customWs.on("close", () => {
     console.log("Client disconnected");
-    // If the client had joined a room, notify the others.
     if (customWs.roomId && customWs.username) {
       broadcastToRoom(
         customWs.roomId,
@@ -102,5 +117,23 @@ wss.on("connection", (ws: WebSocket) => {
     console.error("WebSocket error:", error);
   });
 });
+
+// Set up a regular interval to log server statistics.
+const statsInterval = setInterval(() => {
+  const roomStats: { [roomId: string]: number } = {};
+
+  wss.clients.forEach((client) => {
+    const customClient = client as CustomWebSocket;
+    if (customClient.roomId) {
+      roomStats[customClient.roomId] =
+        (roomStats[customClient.roomId] || 0) + 1;
+    }
+  });
+
+  console.log(`\n--- Server Stats ---`);
+  console.log(`Total connected users: ${wss.clients.size}`);
+  console.log(`Users per room:`, roomStats);
+  console.log(`--------------------\n`);
+}, 15000);
 
 console.log("WebSocket server started on ws://localhost:8080");
