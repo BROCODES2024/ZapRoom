@@ -1,28 +1,34 @@
 import { WebSocketServer, WebSocket } from "ws";
+import type { CustomWebSocket } from "./types/index.js";
+import { addMessageToHistory, getHistoryForRoom } from "./state/roomState.js";
+import { randomUUID } from "crypto";
 
-// Extend WebSocket to store room, username, and heartbeat status
-interface CustomWebSocket extends WebSocket {
-  roomId?: string;
-  username?: string;
-  isAlive: boolean;
-}
-
-const wss = new WebSocketServer({ port: 8080 }); // Create WebSocket server
+const wss = new WebSocketServer({ port: 8080 });
 
 /**
- * Check if a username is already taken in a room (case-insensitive)
+ * Finds a user within a specific room.
  */
-function isUsernameTaken(roomId: string, username: string): boolean {
+function findUserInRoom(
+  roomId: string,
+  username: string
+): CustomWebSocket | null {
   for (const client of wss.clients) {
     const customClient = client as CustomWebSocket;
     if (
       customClient.roomId === roomId &&
       customClient.username?.toLowerCase() === username.toLowerCase()
     ) {
-      return true;
+      return customClient;
     }
   }
-  return false;
+  return null;
+}
+
+/**
+ * Check if a username is already taken in a room (case-insensitive)
+ */
+function isUsernameTaken(roomId: string, username: string): boolean {
+  return !!findUserInRoom(roomId, username);
 }
 
 /**
@@ -36,7 +42,6 @@ function broadcastToRoom(
   const messageString = JSON.stringify(message);
   wss.clients.forEach((client) => {
     const customClient = client as CustomWebSocket;
-    // Only send if connection is open, in same room, and not excluded
     if (
       customClient.readyState === WebSocket.OPEN &&
       customClient.roomId === roomId &&
@@ -50,10 +55,9 @@ function broadcastToRoom(
 // Handle new client connections
 wss.on("connection", (ws: WebSocket) => {
   const customWs = ws as CustomWebSocket;
-  customWs.isAlive = true; // Mark as alive initially
+  customWs.isAlive = true;
   console.log("A new client connected!");
 
-  // Pong response means connection is alive
   customWs.on("pong", () => {
     customWs.isAlive = true;
   });
@@ -63,11 +67,11 @@ wss.on("connection", (ws: WebSocket) => {
     const messageString = message.toString();
     try {
       const messageData = JSON.parse(messageString);
+      const { type, payload } = messageData;
 
-      if (messageData.type === "join") {
-        const { roomId, username } = messageData.payload;
+      if (type === "join") {
+        const { roomId, username } = payload;
 
-        // Validate roomId and username
         if (
           typeof roomId !== "string" ||
           roomId.trim().length === 0 ||
@@ -80,19 +84,16 @@ wss.on("connection", (ws: WebSocket) => {
           return;
         }
 
-        // Prevent duplicate usernames in the same room
         if (isUsernameTaken(roomId, username)) {
           customWs.close(1008, "Username is already taken in this room.");
           return;
         }
 
-        // Assign room and username
         customWs.roomId = roomId.trim();
         customWs.username = username.trim();
 
         console.log(`User ${customWs.username} joined room ${customWs.roomId}`);
 
-        // Welcome message to the new user
         customWs.send(
           JSON.stringify({
             type: "system",
@@ -100,7 +101,10 @@ wss.on("connection", (ws: WebSocket) => {
           })
         );
 
-        // Notify other users in the room
+        // --- NEW: Send message history on join ---
+        const history = getHistoryForRoom(customWs.roomId);
+        customWs.send(JSON.stringify({ type: "history", payload: history }));
+
         broadcastToRoom(
           customWs.roomId,
           {
@@ -109,10 +113,10 @@ wss.on("connection", (ws: WebSocket) => {
           },
           customWs
         );
-      } else if (messageData.type === "chat") {
-        const chatMsg = messageData.payload.message;
+      } else if (type === "chat") {
+        if (!customWs.roomId || !customWs.username) return; // Must be in a room to chat
 
-        // Validate chat message
+        const chatMsg = payload.message;
         if (
           typeof chatMsg !== "string" ||
           chatMsg.trim().length === 0 ||
@@ -122,18 +126,54 @@ wss.on("connection", (ws: WebSocket) => {
           return;
         }
 
-        // Broadcast chat if user is in a room
-        if (customWs.roomId && customWs.username) {
-          const chatMessage = {
-            type: "chat",
-            author: customWs.username,
-            message: chatMsg.trim(),
+        // --- MODIFIED: Use history function to create and store message ---
+        const newChatMessage = addMessageToHistory(customWs.roomId, {
+          author: customWs.username,
+          message: chatMsg.trim(),
+        });
+        broadcastToRoom(customWs.roomId, newChatMessage);
+      } else if (type === "typing" || type === "stop_typing") {
+        // --- NEW: Handle typing indicators ---
+        if (!customWs.roomId || !customWs.username) return;
+
+        broadcastToRoom(
+          customWs.roomId,
+          {
+            type: type === "typing" ? "user_typing" : "user_stop_typing",
+            payload: { username: customWs.username },
+          },
+          customWs
+        );
+      } else if (type === "dm") {
+        // --- NEW: Handle private messages ---
+        if (!customWs.roomId || !customWs.username) return;
+        const { toUsername, message } = payload;
+
+        const recipient = findUserInRoom(customWs.roomId, toUsername);
+
+        if (recipient) {
+          const dm = {
+            id: randomUUID(),
+            type: "private_message",
+            from: customWs.username,
+            to: toUsername,
+            message,
             timestamp: new Date().toISOString(),
           };
-          broadcastToRoom(customWs.roomId, chatMessage);
+
+          recipient.send(JSON.stringify(dm)); // Send to recipient
+          customWs.send(JSON.stringify(dm)); // Send copy to sender
+        } else {
+          // Send error back to sender if user not found
+          customWs.send(
+            JSON.stringify({
+              type: "error",
+              message: `User "${toUsername}" not found in this room.`,
+            })
+          );
         }
       } else {
-        console.warn(`Unknown message type: ${messageData.type}`);
+        console.warn(`Unknown message type: ${type}`);
       }
     } catch (error) {
       console.error(
@@ -155,11 +195,13 @@ wss.on("connection", (ws: WebSocket) => {
     }
   });
 
-  // Handle WebSocket errors
   customWs.on("error", (error) => {
     console.error("WebSocket error:", error);
   });
 });
+
+// Stats and Heartbeat intervals remain the same...
+// (Your existing stats and heartbeat code goes here)
 
 // Log server stats every 30s
 const statsInterval = setInterval(() => {
