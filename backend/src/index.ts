@@ -1,12 +1,13 @@
 import { WebSocketServer, WebSocket } from "ws";
 
-// Define a custom WebSocket type that includes room and user information.
+// Define a custom WebSocket type that includes room, user, and liveness information.
 interface CustomWebSocket extends WebSocket {
   roomId?: string;
   username?: string;
+  isAlive: boolean; // Property to track if the connection is alive.
 }
 
-const wss = new WebSocketServer({ port: 8080 });
+const wss = new WebSocketServer({ port: 8_080 });
 
 // Helper function to broadcast a message to all clients in a specific room.
 function broadcastToRoom(
@@ -33,7 +34,15 @@ function broadcastToRoom(
 wss.on("connection", (ws: WebSocket) => {
   // Cast the incoming WebSocket to our custom type.
   const customWs = ws as CustomWebSocket;
+
+  // Initialize the connection as alive.
+  customWs.isAlive = true;
   console.log("A new client connected!");
+
+  // Set up a pong listener to reset the isAlive flag, confirming the connection is active.
+  customWs.on("pong", () => {
+    customWs.isAlive = true;
+  });
 
   customWs.on("message", (message: Buffer) => {
     const messageString = message.toString();
@@ -134,6 +143,34 @@ const statsInterval = setInterval(() => {
   console.log(`Total connected users: ${wss.clients.size}`);
   console.log(`Users per room:`, roomStats);
   console.log(`--------------------\n`);
-}, 15000);
+}, 15_000);
+
+// Set up the heartbeat interval to detect and terminate dead connections.
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((client) => {
+    const customClient = client as CustomWebSocket;
+
+    // If isAlive is false, the client did not respond to the last ping.
+    if (customClient.isAlive === false) {
+      console.log(
+        `Terminating dead connection for user: ${
+          customClient.username || "unknown"
+        }`
+      );
+      return customClient.terminate();
+    }
+
+    // Assume the connection is dead until a pong is received.
+    customClient.isAlive = false;
+    // Send a ping to the client. The client's browser will automatically reply with a pong.
+    customClient.ping();
+  });
+}, 30_000);
+
+// Clean up intervals when the server is closed.
+wss.on("close", () => {
+  clearInterval(statsInterval);
+  clearInterval(heartbeatInterval);
+});
 
 console.log("WebSocket server started on ws://localhost:8080");
