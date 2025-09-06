@@ -88,3 +88,11 @@ export function getHistoryForRoom(
 ): (ChatMessage | PrivateMessage)[] {
   return rooms.get(roomId)?.history || [];
 }
+
+/**
+ * Returns the number of rooms that have at least one user.
+ * (Note: A more robust implementation would clean up empty rooms)
+ */
+export function countActiveRooms(): number {
+  return rooms.size;
+}

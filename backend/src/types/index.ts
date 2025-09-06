@@ -7,6 +7,8 @@ export interface CustomWebSocket extends WebSocket {
   roomId?: string;
   username?: string;
   isAlive: boolean;
+  messageCount?: number;
+  lastMessageTimestamp?: number;
 }
 
 /**
