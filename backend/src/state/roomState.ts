@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 const MAX_HISTORY_PER_ROOM = 50;
 
 // Store message history for each room. Key: roomId, Value: Array of messages.
-const roomHistories = new Map<string, (ChatMessage | PrivateMessage)[]>();
+const roomHistories = new Map<string, ChatMessage[]>();
 
 /**
  * Adds a new chat message to a room's history, ensuring it doesn't exceed the max size.
@@ -14,6 +14,7 @@ export function addMessageToHistory(
   roomId: string,
   messageData: { author: string; message: string }
 ): ChatMessage {
+  //:ChatMessage means return type is ChatMessage
   if (!roomHistories.has(roomId)) {
     roomHistories.set(roomId, []);
   }
@@ -41,8 +42,6 @@ export function addMessageToHistory(
 /**
  * Retrieves the message history for a given room.
  */
-export function getHistoryForRoom(
-  roomId: string
-): (ChatMessage | PrivateMessage)[] {
+export function getHistoryForRoom(roomId: string): ChatMessage[] {
   return roomHistories.get(roomId) || [];
 }
