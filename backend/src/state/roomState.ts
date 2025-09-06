@@ -3,23 +3,68 @@ import { randomUUID } from "crypto";
 
 const MAX_HISTORY_PER_ROOM = 50;
 
-// Store message history for each room. Key: roomId, Value: Array of messages.
-const roomHistories = new Map<string, ChatMessage[]>();
+type RoomStatus = "open" | "locked";
+
+class Room {
+  host: string | null = null;
+  status: RoomStatus = "open";
+  bannedUsers: Set<string> = new Set(); // Using a Set for efficient lookups
+  history: (ChatMessage | PrivateMessage)[] = [];
+}
+
+const rooms = new Map<string, Room>();
 
 /**
- * Adds a new chat message to a room's history, ensuring it doesn't exceed the max size.
- * @returns The full message object with ID and timestamp.
+ * Gets a room by its ID, creating it if it doesn't exist.
  */
+function getOrCreateRoom(roomId: string): Room {
+  if (!rooms.has(roomId)) {
+    rooms.set(roomId, new Room());
+  }
+  return rooms.get(roomId)!;
+}
+
+/**
+ * Sets the host for a room if it doesn't already have one.
+ */
+export function setRoomHost(roomId: string, username: string) {
+  const room = getOrCreateRoom(roomId);
+  if (!room.host) {
+    room.host = username;
+    console.log(
+      `[STATE] User '${username}' is now the host of room '${roomId}'.`
+    );
+  }
+}
+
+export function getRoomHost(roomId: string): string | null {
+  return rooms.get(roomId)?.host ?? null;
+}
+
+export function isRoomLocked(roomId: string): boolean {
+  return rooms.get(roomId)?.status === "locked";
+}
+
+export function toggleRoomLock(roomId: string): RoomStatus {
+  const room = getOrCreateRoom(roomId);
+  room.status = room.status === "open" ? "locked" : "open";
+  return room.status;
+}
+
+export function banUser(roomId: string, username: string) {
+  const room = getOrCreateRoom(roomId);
+  room.bannedUsers.add(username.toLowerCase());
+}
+
+export function isUserBanned(roomId: string, username: string): boolean {
+  return rooms.get(roomId)?.bannedUsers.has(username.toLowerCase()) ?? false;
+}
+
 export function addMessageToHistory(
   roomId: string,
   messageData: { author: string; message: string }
 ): ChatMessage {
-  //:ChatMessage means return type is ChatMessage
-  if (!roomHistories.has(roomId)) {
-    roomHistories.set(roomId, []);
-  }
-
-  const history = roomHistories.get(roomId)!;
+  const room = getOrCreateRoom(roomId);
 
   const newMessage: ChatMessage = {
     id: randomUUID(),
@@ -29,19 +74,17 @@ export function addMessageToHistory(
     timestamp: new Date().toISOString(),
   };
 
-  history.push(newMessage);
+  room.history.push(newMessage);
 
-  // Trim the history if it's too long
-  if (history.length > MAX_HISTORY_PER_ROOM) {
-    history.shift(); // Remove the oldest message
+  if (room.history.length > MAX_HISTORY_PER_ROOM) {
+    room.history.shift();
   }
 
   return newMessage;
 }
 
-/**
- * Retrieves the message history for a given room.
- */
-export function getHistoryForRoom(roomId: string): ChatMessage[] {
-  return roomHistories.get(roomId) || [];
+export function getHistoryForRoom(
+  roomId: string
+): (ChatMessage | PrivateMessage)[] {
+  return rooms.get(roomId)?.history || [];
 }
