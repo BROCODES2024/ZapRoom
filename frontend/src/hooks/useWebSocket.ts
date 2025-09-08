@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { Message, ChatMessage, PrivateMessage } from "../types";
+import type { Message } from "../types";
 
 interface UseWebSocketProps {
   url: string;
@@ -19,8 +19,8 @@ export function useWebSocket({
   const ws = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const reconnectTimeout = useRef<NodeJS.Timeout>();
-  const typingTimeout = useRef<NodeJS.Timeout>();
+  const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const connect = useCallback(() => {
     if (ws.current?.readyState === WebSocket.OPEN) return;

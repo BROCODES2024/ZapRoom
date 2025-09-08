@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "sonner";
 import { JoinRoom } from "./components/JoinRoom";
 import { ChatRoom } from "./components/ChatRoom";
 
