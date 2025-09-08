@@ -314,7 +314,7 @@ export function ChatRoom({ roomId, username, onLeave }: ChatRoomProps) {
           onSendPrivateMessage={sendPrivateMessage}
           onTyping={sendTypingIndicator}
           disabled={!isConnected}
-          placeholder="Type a message or @username for DM..."
+          placeholder="Type a message..."
         />
       </div>
 
@@ -345,9 +345,8 @@ export function ChatRoom({ roomId, username, onLeave }: ChatRoomProps) {
           <div className="space-y-2 text-xs text-muted-foreground">
             <p>Tips:</p>
             <ul className="space-y-1 ml-4">
-              <li>• Type @username to send a DM</li>
               <li>• First user becomes room host</li>
-              {currentUserIsHost && <li>• You can kick/ban users</li>}
+              {currentUserIsHost && <li>• Host can kick/ban users</li>}
             </ul>
           </div>
         </div>
