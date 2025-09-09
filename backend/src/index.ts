@@ -308,7 +308,6 @@ wss.on("connection", (ws: WebSocket) => {
               targetUser || "room"
             }'`
           );
-          const targetSocket = findUserInRoom(userRoomId, targetUser);
 
           switch (command) {
             case "lock":
@@ -319,23 +318,27 @@ wss.on("connection", (ws: WebSocket) => {
               });
               break;
             case "kick":
-              if (targetSocket) {
-                targetSocket.send(
-                  JSON.stringify({
-                    type: "system",
-                    message: "You have been kicked.",
-                  })
-                );
-                targetSocket.close(4001, "Kicked by host");
-                broadcastToRoom(userRoomId, {
-                  type: "user_left",
-                  payload: { username: targetUser, reason: "kicked" },
-                });
+              if (targetUser) {
+                const targetSocket = findUserInRoom(userRoomId, targetUser);
+                if (targetSocket) {
+                  targetSocket.send(
+                    JSON.stringify({
+                      type: "system",
+                      message: "You have been kicked.",
+                    })
+                  );
+                  targetSocket.close(4001, "Kicked by host");
+                  broadcastToRoom(userRoomId, {
+                    type: "user_left",
+                    payload: { username: targetUser, reason: "kicked" },
+                  });
+                }
               }
               break;
             case "ban":
               if (targetUser) {
                 banUser(userRoomId, targetUser);
+                const targetSocket = findUserInRoom(userRoomId, targetUser);
                 if (targetSocket) {
                   targetSocket.send(
                     JSON.stringify({
