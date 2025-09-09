@@ -124,8 +124,3 @@ This project is licensed under the **MIT License**.
 
 📂 GitHub Repo: [ZapRoom](https://github.com/BROCODES2024/ZapRoom)
 
-```
-
-
-Do you want me to also add **shields.io badges** (e.g., Node.js, React, MIT License) at the top for a more professional GitHub look?
-```
