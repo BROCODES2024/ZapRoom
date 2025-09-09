@@ -2,7 +2,8 @@
 
 ZapRoom is a real-time, room-based chat application built with **WebSocket technology**. It allows users to join chat rooms and exchange messages instantly—no login or authentication required. Designed for simplicity and speed, ZapRoom delivers seamless messaging through a lightweight **Node.js backend** and a modern **React frontend**.  
 
-> 🎥 Click the image above to watch the video demo.  
+[![ZapRoom Demo](https://img.youtube.com/vi/F5hLT-PF3bY/0.jpg)](https://www.youtube.com/watch?v=F5hLT-PF3bY)  
+*🎥 Click the thumbnail above to watch the video demo on YouTube.*  
 
 ---
 
@@ -62,7 +63,7 @@ ZapRoom is a real-time, room-based chat application built with **WebSocket techn
 
 Clone the repository:  
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/BROCODES2024/ZapRoom.git
 cd ZapRoom
 ````
 
@@ -121,5 +122,10 @@ Now open multiple browser tabs/windows to simulate different users joining and i
 
 This project is licensed under the **MIT License**.
 
+📂 GitHub Repo: [ZapRoom](https://github.com/BROCODES2024/ZapRoom)
+
 ```
 
+
+Do you want me to also add **shields.io badges** (e.g., Node.js, React, MIT License) at the top for a more professional GitHub look?
+```
