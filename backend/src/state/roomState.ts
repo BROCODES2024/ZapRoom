@@ -8,7 +8,7 @@ type RoomStatus = "open" | "locked";
 class Room {
   host: string | null = null;
   status: RoomStatus = "open";
-  bannedUsers: Set<string> = new Set(); // Using a Set for efficient lookups
+  bannedUsers: Set<string> = new Set();
   history: (ChatMessage | PrivateMessage)[] = [];
 }
 
@@ -25,11 +25,18 @@ function getOrCreateRoom(roomId: string): Room {
 }
 
 /**
- * Sets the host for a room if it doesn't already have one.
+ * Sets the host for a room.
+ * @param roomId - The room ID
+ * @param username - The username to set as host
+ * @param force - Force update even if a host already exists (for host transfer)
  */
-export function setRoomHost(roomId: string, username: string) {
+export function setRoomHost(
+  roomId: string,
+  username: string,
+  force: boolean = false
+) {
   const room = getOrCreateRoom(roomId);
-  if (!room.host) {
+  if (!room.host || force) {
     room.host = username;
     console.log(
       `[STATE] User '${username}' is now the host of room '${roomId}'.`
@@ -48,12 +55,16 @@ export function isRoomLocked(roomId: string): boolean {
 export function toggleRoomLock(roomId: string): RoomStatus {
   const room = getOrCreateRoom(roomId);
   room.status = room.status === "open" ? "locked" : "open";
+  console.log(`[STATE] Room '${roomId}' is now ${room.status}.`);
   return room.status;
 }
 
 export function banUser(roomId: string, username: string) {
   const room = getOrCreateRoom(roomId);
   room.bannedUsers.add(username.toLowerCase());
+  console.log(
+    `[STATE] User '${username}' has been banned from room '${roomId}'.`
+  );
 }
 
 export function isUserBanned(roomId: string, username: string): boolean {
@@ -91,8 +102,18 @@ export function getHistoryForRoom(
 
 /**
  * Returns the number of rooms that have at least one user.
- * (Note: A more robust implementation would clean up empty rooms)
  */
 export function countActiveRooms(): number {
   return rooms.size;
+}
+
+/**
+ * Clears the host for a room (when the host leaves and no users remain)
+ */
+export function clearRoomHost(roomId: string) {
+  const room = rooms.get(roomId);
+  if (room) {
+    room.host = null;
+    console.log(`[STATE] Room '${roomId}' no longer has a host.`);
+  }
 }

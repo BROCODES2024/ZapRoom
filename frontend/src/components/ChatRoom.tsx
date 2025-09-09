@@ -40,17 +40,17 @@ export function ChatRoom({ roomId, username, onLeave }: ChatRoomProps) {
   const [messages, setMessages] = useState<(ChatMessage | PrivateMessage)[]>(
     []
   );
-  const [users, setUsers] = useState<User[]>([{ username, isHost: false }]);
+  const [users, setUsers] = useState<User[]>([]);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [isRoomLocked, setIsRoomLocked] = useState(false);
+  const [currentHost, setCurrentHost] = useState<string | null>(null);
   const [dmTarget, setDmTarget] = useState<string>("");
   const [showDMDialog, setShowDMDialog] = useState(false);
   const [dmMessage, setDmMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  const currentUserIsHost =
-    users.find((u) => u.username === username)?.isHost || false;
+  const currentUserIsHost = currentHost === username;
 
   const {
     isConnected,
@@ -91,41 +91,74 @@ export function ChatRoom({ roomId, username, onLeave }: ChatRoomProps) {
             description: message.message,
             duration: 3000,
           });
+          break;
 
-          // Update room lock status
-          if (message.message.includes("room is now")) {
-            setIsRoomLocked(message.message.includes("locked"));
-          }
-
-          // Update user list based on join/leave messages
-          if (message.message.includes("has joined")) {
-            const joinUsername = message.message.split(" ")[0];
-            if (joinUsername !== username) {
-              setUsers((prev) => {
-                if (!prev.find((u) => u.username === joinUsername)) {
-                  return [...prev, { username: joinUsername, isHost: false }];
-                }
-                return prev;
-              });
-            }
-          } else if (
-            message.message.includes("has left") ||
-            message.message.includes("has been kicked") ||
-            message.message.includes("has been banned")
-          ) {
-            const leftUsername = message.message.split(" ")[0];
-            setUsers((prev) => prev.filter((u) => u.username !== leftUsername));
-          }
-
-          // Check if current user is host
-          if (message.message.includes(`Welcome to room`)) {
-            // First user in room becomes host
-            setUsers([{ username, isHost: true }]);
-          }
+        case "room_state":
+          // This is sent when user joins - contains full room state
+          setUsers(message.payload.users);
+          setIsRoomLocked(message.payload.isLocked);
+          setCurrentHost(message.payload.host);
           break;
 
         case "history":
           setMessages(message.payload);
+          break;
+
+        case "user_joined":
+          // Add the new user to the list
+          setUsers((prev) => {
+            // Check if user already exists to avoid duplicates
+            if (prev.find((u) => u.username === message.payload.username)) {
+              return prev;
+            }
+            return [
+              ...prev,
+              {
+                username: message.payload.username,
+                isHost: message.payload.isHost,
+              },
+            ];
+          });
+          toast({
+            description: `${message.payload.username} has joined the room`,
+            duration: 2000,
+          });
+          break;
+
+        case "user_left":
+          // Remove the user from the list
+          setUsers((prev) =>
+            prev.filter((u) => u.username !== message.payload.username)
+          );
+          toast({
+            description: `${message.payload.username} has ${message.payload.reason}`,
+            duration: 2000,
+          });
+          break;
+
+        case "host_update":
+          // Update the host
+          setCurrentHost(message.payload.newHost);
+          setUsers((prev) =>
+            prev.map((u) => ({
+              ...u,
+              isHost: u.username === message.payload.newHost,
+            }))
+          );
+          toast({
+            description: `${message.payload.newHost} is now the host`,
+            duration: 3000,
+          });
+          break;
+
+        case "room_lock_update":
+          setIsRoomLocked(message.payload.isLocked);
+          toast({
+            description: `Room is now ${
+              message.payload.isLocked ? "locked" : "unlocked"
+            }`,
+            duration: 2000,
+          });
           break;
 
         case "user_typing":
@@ -347,6 +380,9 @@ export function ChatRoom({ roomId, username, onLeave }: ChatRoomProps) {
             <ul className="space-y-1 ml-4">
               <li>• First user becomes room host</li>
               {currentUserIsHost && <li>• Host can kick/ban users</li>}
+              {currentHost && !currentUserIsHost && (
+                <li>• Current host: {currentHost}</li>
+              )}
             </ul>
           </div>
         </div>
