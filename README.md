@@ -2,7 +2,7 @@
 
 ZapRoom is a real-time, room-based chat application built with **WebSocket technology**. It allows users to join chat rooms and exchange messages instantly—no login or authentication required. Designed for simplicity and speed, ZapRoom delivers seamless messaging through a lightweight **Node.js backend** and a modern **React frontend**.
 
-[](https://www.youtube.com/watch?v=F5hLT-PF3bY)
+[🎥 Watch Demo on YouTube](https://www.youtube.com/watch?v=F5hLT-PF3bY)
 *🎥 Click the thumbnail above to watch the video demo on YouTube.*
 
 -----
