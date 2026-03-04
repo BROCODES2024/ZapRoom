@@ -47,164 +47,31 @@ ZapRoom is a real-time, room-based chat application built with **WebSocket techn
   - Runtime: **Node.js**
   - Language: **TypeScript**
   - Framework: **WebSocket (`ws` library)**
-  - Server: **Node.js http module** (for metrics)
+  - Deployment: **Railway**
 
 ### Frontend
 
-  - Framework: **React**
+  - Framework: **Next.js 15 (App Router)**
   - Language: **TypeScript**
-  - Build Tool: **Vite**
-  - Styling: **Tailwind CSS**
+  - Styling: **Tailwind CSS v4**
   - UI Components: **Shadcn UI**
+  - Deployment: **Railway**
 
 -----
 
-## 🏛️ Architecture
+## 🚀 Deployment (Railway)
 
-### Current Architecture
+ZapRoom is configured for seamless deployment on [Railway](https://railway.app/). The project includes `railway.toml` files in both the frontend and backend directories.
 
-The current architecture is a simple client-server model. Clients (React applications in user browsers) establish a direct WebSocket connection to a single Node.js backend server. All room management, user lists, and message history are stored directly in the server's memory. This provides excellent performance for smaller deployments but introduces limitations in scalability and data persistence.
-
-```
-+----------------+      <-- WebSocket -->      +--------------------------+
-|                |      (JSON Payloads)      |                          |
-|  Client        |                           |  Server (Node.js + ws)   |
-|  (React App)   |                           |                          |
-|                |      <-----------------     +-----------+--------------+
-+----------------+                                        |
-                                                          | (Reads/Writes)
-                                                          ↓
-                                             +--------------------------+
-                                             |     In-Memory State      |
-                                             | (rooms, users, messages) |
-                                             +--------------------------+
-```
+1. Create a new empty project on Railway.
+2. Deploy from your GitHub repository.
+3. Railway will detect the monorepo-style setup and deploy both services (`zaproom-frontend` and `zaproom-backend`).
+4. **Environment Variables**:
+   - On the `zaproom-frontend` service, add a variable: `NEXT_PUBLIC_WS_URL=wss://<your-backend-railway-url>`
 
 -----
 
-### Future Architecture (Scalable)
-
-To achieve higher scalability and data persistence, the future architecture introduces several key components designed for a distributed environment. It moves from a monolithic, in-memory state to a system with a persistent database, a fleet of WebSocket servers, and a Pub/Sub system managed by a load balancer.
-
-```
-+----------+ 1. Connects via Load Balancer
-|          |------------------------------------->+-----------------+
-|  Clients |                                      |                 |
-| (React,  |                                      |  Load Balancer  |
-|   etc)   |                                      |                 |
-|          |<-------------------------------------+-----------------+
-+----------+                                              |
-      ^                                                     | 2. Assigns connection
-      |                                                     | to a healthy server
-      |                                           +---------+---------+
-      | 5. Message delivered to                   |         |         |
-      |    all clients in the room                v         v         v
-      |                                     +----------+----------+----------+
-      |                                     | Server 1 | Server 2 | Server N |
-      |                                     | (Node.js | (Node.js | (Node.js |
-      |                                     |    ws)   |    ws)   |    ws)   |
-      +-------------------------------------+----------+----------+----------+
-                                                  ^    ^    ^    ^    ^
-                                                  |    |    |    |    |
-                      4. Pub/Sub broadcasts message |    |    |    |    | 3. Server 2 publishes
-                         to ALL subscribed servers  +----+----+----+----+ message to room channel
-                                                       |    |    |
-                                                       v    v    v
-                                                 +-----------------+
-                                                 |   Pub/Sub System|
-                                                 |   (e.g., Redis) |
-                                                 +-----------------+
-                                                         |
-                                                         | 6. (Optional) Persists
-                                                         |    message to DB
-                                                         v
-                                                 +-----------------+
-                                                 |   PostgreSQL DB |
-                                                 +-----------------+
-```
-
-**Key Components & Their Roles:**
-
-1.  **Turborepo (Monorepo Strategy):** This will be used to manage the `frontend`, `backend`, and potentially shared `packages/` within a single repository, streamlining development, build processes, and shared code.
-2.  **Load Balancer:** Distributes incoming client WebSocket connections across a fleet of backend WebSocket servers, ensuring high availability and efficient resource utilization.
-3.  **Fleet of WebSocket Servers:** Multiple, stateless Node.js WebSocket server instances. Each server handles a subset of client connections and communicates with other servers via a Pub/Sub system.
-4.  **Pub/Sub System (e.g., Redis):** A central messaging bus that enables inter-server communication. When a message is sent to a room by a client connected to one server, that server publishes the message to a specific channel in the Pub/Sub system. All other servers subscribed to that channel receive the message and deliver it to their connected clients in that room.
-5.  **PostgreSQL Database:** The primary data store for persistent data like users, messages, and room configurations, accessed by the backend servers.
-
------
-
-## 📈 Scalability and Tradeoffs
-
-### Scalability Benefits
-
-  * **Horizontal Scaling:** The architecture allows for easy addition of more WebSocket servers as traffic grows, enabling the handling of a large number of concurrent connections.
-  * **High Availability:** The load balancer and multiple server instances ensure that the application remains available even if individual servers fail.
-  * **Persistence:** Moving from in-memory to PostgreSQL ensures all chat data is saved permanently.
-  * **Efficient Real-time Communication:** The Pub/Sub system effectively distributes messages across the server fleet, enabling seamless communication in large-scale deployments.
-
-### Tradeoffs
-
-  * **Increased Complexity:** Moving to a distributed system inherently introduces more complexity in terms of deployment, monitoring, and troubleshooting.
-  * **Higher Infrastructure Cost:** Running multiple servers, a Pub/Sub system, and a database will generally incur higher operational costs compared to a single-server setup.
-  * **Debugging Challenges:** Tracing issues across multiple interconnected services can be more challenging than in a simple monolithic application.
-  * **Development Overhead:** Setting up and configuring these new services requires additional development effort and expertise.
-
------
-
-## 🚧 Challenges and Learnings
-
-Building a real-time chat application, even a simple one, presents several interesting challenges:
-
-  * **WebSocket State Management:** Ensuring consistent state across connected clients and handling disconnections gracefully (heartbeats, auto-reconnect) is critical. The current in-memory approach simplifies this but limits scale.
-  * **Concurrency:** Managing simultaneous message sends and room actions without race conditions.
-  * **Security:** Input sanitization and rate limiting are crucial to prevent abuse and protect against common web vulnerabilities like XSS.
-  * **Frontend-Backend Sync:** Keeping the UI updated in real-time while ensuring data consistency can be tricky, especially with features like typing indicators and message history.
-  * **Moderation Logic:** Implementing robust host and moderation tools requires careful design to prevent misuse.
-
-Learnings often revolve around:
-
-  * The power and necessity of **WebSockets** for true real-time experiences.
-  * The importance of **stateless servers** in a scalable architecture.
-  * The role of **Pub/Sub patterns** for inter-service communication in distributed systems.
-  * The eventual need for **persistence** and how to integrate it without sacrificing real-time performance.
-
------
-
-## 🛣️ Future Work
-
-To further enhance ZapRoom and realize the full potential of its scalable architecture, the following areas will be explored:
-
-1.  **User Authentication & Profiles:**
-      * Implement user registration and login (e.g., using JWTs).
-      * Create persistent user profiles with unique usernames and avatars.
-      * Introduce private user settings.
-2.  **Database Integration (PostgreSQL + Prisma):**
-      * Transition from in-memory storage to a persistent PostgreSQL database.
-      * Utilize Prisma ORM for robust and type-safe database interactions.
-      * Store user data, chat messages (for extended history), and room configurations.
-3.  **Advanced Room Features:**
-      * Password-protected rooms.
-      * Public vs. Private rooms.
-      * Voice/Video chat integration.
-      * File sharing within chat rooms.
-4.  **Enhanced Moderation & Administration:**
-      * Admin panel for global moderation (beyond room hosts).
-      * Reporting system for inappropriate content or behavior.
-      * More granular permissions for hosts and moderators.
-5.  **Notifications:**
-      * Push notifications for DMs or mentions when users are offline.
-      * Browser tab notifications.
-6.  **Deployment & Operations:**
-      * Implement Docker for containerization of both frontend and backend services.
-      * Orchestrate deployment and scaling using platforms like Kubernetes for robust scaling, self-healing, and zero-downtime deployments.
-      * Set up CI/CD pipelines for automated testing and deployment.
-      * Integrate centralized logging and monitoring solutions.
-7.  **Monorepo with Turborepo:**
-      * Restructure the project into a monorepo using Turborepo for efficient management of shared code and optimized build processes.
-
------
-
-## 🚀 Getting Started
+## 🚀 Getting Started Locally
 
 ### ✅ Prerequisites
 
@@ -239,25 +106,25 @@ npm install
 
 You need **two terminals** open (one for backend, one for frontend).
 
-**Start the Backend Server**
+**Start the Backend Server (Terminal 1)**
 
 ```bash
 cd backend
-npm start
+npm run dev
 ```
 
   * Runs WebSocket server on: `ws://localhost:8080`
 
-**Start the Frontend Application**
+**Start the Frontend Application (Terminal 2)**
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-  * Runs frontend on: `http://localhost:5173`
+  * Runs frontend on: `http://localhost:3000`
 
-Now open multiple browser tabs/windows to simulate different users joining and interacting in a chat room 🚀
+Now open multiple browser tabs/windows at `http://localhost:3000` to simulate different users joining and interacting in a chat room 🚀
 
 -----
 
@@ -266,7 +133,7 @@ Now open multiple browser tabs/windows to simulate different users joining and i
   * Multiple users in real-time rooms
   * Host moderation controls (lock/kick/ban)
   * Private DMs + typing indicators
-  * Auto reconnect + modern UI
+  * Auto reconnect + modern UI (with Dark Mode toggle)
 
 -----
 
