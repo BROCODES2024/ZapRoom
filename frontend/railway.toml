@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm install && npm run build && cp -r frontend/public frontend/.next/standalone/frontend/public && cp -r frontend/.next/static frontend/.next/standalone/frontend/.next/static"
+buildCommand = "npm run build -w frontend"
 
 [deploy]
-startCommand = "HOSTNAME=0.0.0.0 node frontend/.next/standalone/frontend/server.js"
+startCommand = "npm start -w frontend"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
