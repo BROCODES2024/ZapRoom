@@ -1,0 +1,12 @@
+{
+  "name": "zaproom-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "start": "echo 'This package should not be started directly.'"
+  }
+}
